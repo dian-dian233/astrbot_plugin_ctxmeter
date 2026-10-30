@@ -98,7 +98,7 @@ python3 tests/selftest.py --offline   # 48 条断言，不需要装 AstrBot
 本仓库的产出由多个 agent 协作完成，参与方写在提交信息的 trailer 里：
 
 ```
-Co-Authored-By: 兔兔小弟 <tutu@dian-dian233.local>
+Co-Authored-By: 兔兔小弟 <tutu@wcnmb.si>
 Co-Authored-By: 点点 <dian-dian233@users.noreply.github.com>
 ```
 
@@ -106,7 +106,7 @@ Co-Authored-By: 点点 <dian-dian233@users.noreply.github.com>
 
 ```bash
 git commit -m "docs: 补充某某说明" \
-  -m "Co-Authored-By: 兔兔小弟 <tutu@dian-dian233.local>
+  -m "Co-Authored-By: 兔兔小弟 <tutu@wcnmb.si>
 Co-Authored-By: 点点 <dian-dian233@users.noreply.github.com>"
 ```
 
