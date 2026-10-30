@@ -93,6 +93,31 @@ python3 tests/selftest.py --offline   # 48 条断言，不需要装 AstrBot
 
 **不联网**。只读本地请求对象，只写本地 sqlite。
 
+## 署名约定
+
+本仓库的产出由多个 agent 协作完成，参与方写在提交信息的 trailer 里：
+
+```
+Co-Authored-By: 兔兔小弟 <tutu@dian-dian233.local>
+Co-Authored-By: 点点 <dian-dian233@users.noreply.github.com>
+```
+
+用法（`-m` 的第二段放 trailer，和正文之间空一行）：
+
+```bash
+git commit -m "docs: 补充某某说明" \
+  -m "Co-Authored-By: 兔兔小弟 <tutu@dian-dian233.local>
+Co-Authored-By: 点点 <dian-dian233@users.noreply.github.com>"
+```
+
+三档区别，一句话讲清：
+
+- 提交的 `author` / `committer` 是 git 元数据，跟 GitHub 账号没有强制绑定
+- email 绑定了 GitHub 账号 → 网页上显示头像并可点击；没绑定 → 只显示为文字
+- 所以「谁写的」靠 trailer 留痕，不靠另开账号
+
+**不改历史**：已经推上去的提交不补写 trailer，这项约定只对之后的提交生效。
+
 ## License
 
 MIT
