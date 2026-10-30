@@ -2,7 +2,7 @@ name: astrbot_plugin_ctxmeter
 display_name: 上下文仪表盘
 desc: 每轮把 prompt 拆成系统提示/历史/本轮输入/引用/附加块/工具 schema 六段，分别估算 token 并与供应商上报的真实 usage（新增·缓存·输出）对照落库；/ctx 看最近 N 轮，/ctx sum 看汇总与缓存命中率
 short_desc: 看看你这轮上下文到底吃了多少 token
-version: 0.1.0
+version: 0.1.1
 author: dian-dian233
 repo: https://github.com/dian-dian233/astrbot_plugin_ctxmeter
 astrbot_version: ">=4.9.0"

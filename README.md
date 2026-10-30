@@ -84,3 +84,15 @@ python3 tests/selftest.py --offline   # 48 条断言，不需要装 AstrBot
 ## License
 
 MIT
+
+## 不落库？先跑 `/ctx diag`
+
+```
+/ctx diag
+```
+会打印：两个钩子的触发次数、落库条数、数据库绝对路径、文件是否存在、最后一次错误。
+
+- 两个钩子都 0 次 → 插件没加载成功，或该版本 AstrBot 不走这条链路
+- 请求进了、响应没进 → provider 没触发 `on_llm_response`
+- 响应进了、落库 0 → 看「最后错误」，多半是数据目录不可写
+

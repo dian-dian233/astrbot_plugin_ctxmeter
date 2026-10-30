@@ -27,7 +27,7 @@ from .core.store import CtxStore
     "astrbot_plugin_ctxmeter",
     "dian-dian233",
     "上下文仪表盘：每轮拆解 prompt token 构成与缓存命中",
-    "0.1.0",
+    "0.1.1",
 )
 class CtxMeterPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
@@ -35,12 +35,22 @@ class CtxMeterPlugin(Star):
         self.conf = config or {}
         self.store: CtxStore | None = None
         self._pending: dict = {}
+        self._db_file = ""
+        self._db_error = ""
+        self._n_req = 0
+        self._n_resp = 0
+        self._n_written = 0
 
     async def initialize(self):
         data_dir = resolve_data_dir(self.conf.get("data_dir") or "")
         path = db_path(data_dir)
-        self.store = CtxStore(path)
-        logger.info(f"[ctxmeter] 数据库：{path}")
+        self._db_file = path
+        try:
+            self.store = CtxStore(path)
+            logger.info(f"[ctxmeter] 数据库：{path}")
+        except Exception as exc:
+            self._db_error = f"{type(exc).__name__}: {exc}"
+            logger.error(f"[ctxmeter] 数据库初始化失败 {path} → {self._db_error}")
 
     async def terminate(self):
         if self.store:
@@ -58,6 +68,7 @@ class CtxMeterPlugin(Star):
     async def on_req(self, event: AstrMessageEvent, req):
         if not self.conf.get("enabled", True):
             return
+        self._n_req += 1
         try:
             self._pending[self._key(event)] = breakdown_request(req)
         except Exception as exc:  # 绝不因为仪表盘把正常回复搞挂
@@ -65,12 +76,17 @@ class CtxMeterPlugin(Star):
 
     @filter.on_llm_response()
     async def on_resp(self, event: AstrMessageEvent, response):
-        if not self.conf.get("enabled", True) or not self.store:
+        self._n_resp += 1
+        if not self.conf.get("enabled", True):
             return
         breakdown = self._pending.pop(self._key(event), None)
         try:
             usage = getattr(response, "usage", None)
-            self.store.record(breakdown or {"tokens": {}}, usage)
+            if self.store:
+                self.store.record(breakdown or {"tokens": {}}, usage)
+                self._n_written += 1
+            else:
+                self._db_error = self._db_error or "store 未初始化"
             if self.conf.get("log_each_turn", True):
                 row = {"id": "-", "ts": time.time(), **(breakdown or {}).get("tokens", {})}
                 segs = {
@@ -98,6 +114,25 @@ class CtxMeterPlugin(Star):
             yield event.plain_result("ctxmeter 还没初始化好，等会儿再试")
             return
         arg = (arg or "").strip()
+        if arg in ("diag", "诊断"):
+            total = self._n_req + self._n_resp
+            lines = [
+                "ctxmeter 自诊断",
+                f"  钩子：on_llm_request {self._n_req} 次 / on_llm_response {self._n_resp} 次",
+                f"  落库：{self._n_written} 条",
+                f"  数据库：{self._db_file or '(未初始化)'}",
+                f"  文件存在：{'是' if os.path.exists(self._db_file) else '否'}"
+                if self._db_file else "  文件存在：-",
+                f"  最后错误：{self._db_error or '无'}",
+            ]
+            if total == 0:
+                lines.append("  ⚠️ 两个钩子都没触发：插件可能没加载成功，或该 AstrBot 版本不走这条链路")
+            elif self._n_req > 0 and self._n_resp == 0:
+                lines.append("  ⚠️ 请求钩子进了、响应钩子没进：provider 可能没触发 on_llm_response")
+            elif self._n_resp > 0 and self._n_written == 0:
+                lines.append("  ⚠️ 响应钩子进了但没落库：看「最后错误」")
+            yield event.plain_result("\n".join(lines))
+            return
         if arg.startswith("sum"):
             hours = 24
             parts = arg.split()
