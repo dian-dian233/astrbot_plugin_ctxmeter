@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-and-selftest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 编译检查
+        run: python3 -m compileall -q .
+      - name: 离线自测
+        run: python3 tests/selftest.py --offline
+      - name: 纯标准库校验（不许引第三方）
+        run: |
+          if grep -rE "^(import|from) (requests|httpx|aiohttp|pydantic|numpy)" --include=*.py . ; then
+            echo "::error::检测到第三方依赖，本插件要求纯标准库"
+            exit 1
+          fi
+          echo "✅ 未发现第三方依赖"
+
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: metadata.yaml 体检
+        run: |
+          python3 - <<'PY'
+          import re, sys, json, pathlib
+          meta = pathlib.Path("metadata.yaml").read_text(encoding="utf-8")
+          for key in ("name:", "display_name:", "desc:", "short_desc:", "version:", "author:", "repo:", "astrbot_version:"):
+              assert re.search(rf"^{key}", meta, re.M), f"metadata.yaml 缺少 {key}"
+          name = re.search(r"^name:\s*(\S+)", meta, re.M).group(1)
+          assert name == "astrbot_plugin_ctxmeter", f"name 应为目录名，实际 {name}"
+          schema = json.loads(pathlib.Path("_conf_schema.json").read_text(encoding="utf-8"))
+          assert isinstance(schema, dict) and schema, "_conf_schema.json 必须是对象"
+          for k, v in schema.items():
+              assert "type" in v and "description" in v, f"配置项 {k} 缺 type/description"
+          assert pathlib.Path("main.py").exists(), "缺 main.py"
+          print("✅ metadata / schema / main.py 体检通过")
+          PY

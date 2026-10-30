@@ -1,0 +1,20 @@
+{
+  "enabled": {
+    "type": "bool",
+    "description": "启用上下文统计",
+    "default": true,
+    "hint": "关掉后不再记录，/ctx 仍可查历史"
+  },
+  "log_each_turn": {
+    "type": "bool",
+    "description": "每轮在日志里打一行摘要",
+    "default": true,
+    "hint": "关掉则只落库，不打日志"
+  },
+  "data_dir": {
+    "type": "string",
+    "description": "数据库目录（留空用 AstrBot data 目录）",
+    "default": "",
+    "hint": "默认 <data>/plugin_data/astrbot_plugin_ctxmeter/"
+  }
+}
