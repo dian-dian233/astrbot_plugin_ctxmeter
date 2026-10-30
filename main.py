@@ -27,7 +27,7 @@ from .core.store import CtxStore
     "astrbot_plugin_ctxmeter",
     "dian-dian233",
     "上下文仪表盘：每轮拆解 prompt token 构成与缓存命中",
-    "0.1.1",
+    "0.1.2",
 )
 class CtxMeterPlugin(Star):
     def __init__(self, context: Context, config: dict | None = None):
@@ -149,3 +149,57 @@ class CtxMeterPlugin(Star):
             yield event.plain_result("还没有记录。发一条消息让我跑一轮，再看 /ctx")
             return
         yield event.plain_result("\n\n".join(format_turn(r) for r in rows))
+
+    # ── LLM 工具：让模型自己查，而不是等人敲 /ctx ──────────
+    @filter.llm_tool(name="ctx_recent")
+    async def tool_recent(self, event: AstrMessageEvent, limit: int = 5):
+        """查看最近几轮 LLM 请求的上下文 token 拆解（系统提示/历史/输入/引用/附加块/工具schema），以及与供应商上报的真实用量对照。用于回答「上一轮吃了多少 token」「引用占多少」。
+
+        Args:
+            limit(number): 要看的轮数，1-20，默认 5
+        """
+        if not self.store:
+            return "ctxmeter 未初始化：数据库没打开，用 /ctx diag 排查"
+        try:
+            n = int(limit or 5)
+        except Exception:
+            n = 5
+        rows = self.store.recent(max(1, min(n, 20)))
+        if not rows:
+            return "还没有记录。先跑一轮对话，再查。"
+        return "\n\n".join(format_turn(r) for r in rows)
+
+    @filter.llm_tool(name="ctx_summary")
+    async def tool_summary(self, event: AstrMessageEvent, hours: int = 24):
+        """查看最近若干小时的用量汇总：各分段累计占比、真实输入（新增/缓存）、缓存命中率、输出 token。用于回答「今天花了多少 token」「缓存命中多少」。
+
+        Args:
+            hours(number): 统计窗口小时数，1-720，默认 24
+        """
+        if not self.store:
+            return "ctxmeter 未初始化：数据库没打开，用 /ctx diag 排查"
+        try:
+            h = int(hours or 24)
+        except Exception:
+            h = 24
+        h = max(1, min(h, 24 * 30))
+        return format_summary(self.store.summary(h), h)
+
+    @filter.llm_tool(name="ctx_diag")
+    async def tool_diag(self, event: AstrMessageEvent):
+        """诊断 ctxmeter 是否在工作：两个钩子的触发次数、落库条数、数据库路径与最后错误。统计一直是空的时候用它排查。"""
+        total = self._n_req + self._n_resp
+        lines = [
+            "ctxmeter 自诊断",
+            f"钩子：on_llm_request {self._n_req} 次 / on_llm_response {self._n_resp} 次",
+            f"落库：{self._n_written} 条",
+            f"数据库：{self._db_file or '(未初始化)'}",
+            f"最后错误：{self._db_error or '无'}",
+        ]
+        if total == 0:
+            lines.append("两个钩子都没触发：插件可能没加载成功，或该版本 AstrBot 不走这条链路")
+        elif self._n_req > 0 and self._n_resp == 0:
+            lines.append("请求钩子进了、响应钩子没进：provider 可能没触发 on_llm_response")
+        elif self._n_resp > 0 and self._n_written == 0:
+            lines.append("响应钩子进了但没落库：看「最后错误」")
+        return "\n".join(lines)
